@@ -1,0 +1,40 @@
+{
+  "window_w": 240,
+  "window_h": 270,
+  "start_x": null,
+  "start_y": null,
+  "topmost": true,
+  "click_through": true,
+  "use_spritesheet": true,
+  "hunger_per_hour": 1.6,
+  "mood_per_hour": 0.7,
+  "energy_per_hour": 1.1,
+  "energy_recover_per_hour": 35.0,
+  "hungry_threshold": 75.0,
+  "sleepy_threshold": 22.0,
+  "auto_save_interval": 60.0,
+  "idle_after_action": 6.0,
+  "random_action_interval": 16.0,
+  "random_action_chance": 0.5,
+  "demo_message_interval": 45.0,
+  "inbox_poll_interval": 2.0,
+  "bubble_seconds": 6.0,
+  "beep_on_message": true,
+  "atlas": {
+    "cols": 8,
+    "rows": 9,
+    "cell_w": 192,
+    "cell_h": 208,
+    "row_map": {
+      "0": "idle",
+      "1": "happy",
+      "2": "eating",
+      "3": "sleeping",
+      "4": "sad",
+      "5": "busy",
+      "6": "waving",
+      "7": "drag",
+      "8": "speaking"
+    }
+  }
+}
