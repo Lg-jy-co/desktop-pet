@@ -1,3 +1,5 @@
+# renderer.py
+
 """渲染器。
 
 两种模式：
@@ -70,10 +72,16 @@ class Renderer:
     # ---- 图集模式 ----
 
     def _draw_image(self, state: PetState, frame: int) -> None:
-        img = self.sheet.frame(state, frame)
+        # 判断是否为移动状态
+        if state in (PetState.MOVE_UP, PetState.MOVE_DOWN, PetState.MOVE_LEFT, PetState.MOVE_RIGHT):
+            img = self.sheet.move_frame(state, frame) if self.sheet else None
+        else:
+            img = self.sheet.frame(state, frame)
+
         if img is None:
-            self._draw_vector(state, frame)
+            self._draw_vector(state, frame)  # 回退到矢量
             return
+
         w, h = self.cfg.window_w, self.cfg.window_h
         x = w // 2
         y = h - 26 - img.height() // 2

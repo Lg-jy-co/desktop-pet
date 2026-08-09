@@ -1,3 +1,5 @@
+# config.py
+
 """全局配置。
 
 优先级：内置默认值 < data/config.json（可选覆盖）。
@@ -62,6 +64,23 @@ class AtlasConfig:
         # JSON 配置里的键会是字符串，统一转成 int，避免行号拼接出错
         self.row_map = {int(k): v for k, v in self.row_map.items()}
 
+@dataclass
+class MoveAtlasConfig:
+    file: str = "move_spritesheet.png"
+    cols: int = 4          # 每行帧数，可以根据你的 n 调整
+    rows: int = 4          # 4 个方向
+    cell_w: int = 192      # 与主图集单格相同，便于统一
+    cell_h: int = 208
+    # 行号 -> 移动状态名（与 PetState 的值对应）
+    row_map: dict = field(default_factory=lambda: {
+        0: "move_up",
+        1: "move_down",
+        2: "move_left",
+        3: "move_right",
+    })
+
+    def __post_init__(self):
+        self.row_map = {int(k): v for k, v in self.row_map.items()}
 
 @dataclass
 class PetConfig:
@@ -97,6 +116,11 @@ class PetConfig:
 
     atlas: AtlasConfig = field(default_factory=AtlasConfig)
 
+    # ---- 新增移动 ----
+    use_move_spritesheet: bool = True
+    move_atlas: MoveAtlasConfig = field(default_factory=MoveAtlasConfig)
+    drag_threshold: int = 3  # 拖拽判定最小位移（像素）
+
 
 def _deep_merge(base: dict, override: dict) -> dict:
     for key, value in override.items():
@@ -111,11 +135,18 @@ def _from_raw(cfg: PetConfig, raw: dict) -> PetConfig:
     """把用户 JSON 覆盖到默认配置上，返回新配置。"""
     merged = asdict(cfg)
     _deep_merge(merged, raw)
+    # 处理主图集
     atlas = merged.get("atlas")
     if isinstance(atlas, dict):
         merged["atlas"] = AtlasConfig(**atlas)
     elif "atlas" in merged:
         merged.pop("atlas")  # atlas 不是对象时回退默认
+    # 处理移动图集（新增）
+    move_atlas = merged.get("move_atlas")
+    if isinstance(move_atlas, dict):
+       merged["move_atlas"] = MoveAtlasConfig(**move_atlas)
+    else:
+        merged.pop("move_atlas", None)
     return PetConfig(**merged)
 
 

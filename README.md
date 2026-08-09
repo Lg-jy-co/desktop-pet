@@ -6,7 +6,7 @@
 
 - **投喂系统** - 6 种食物（苹果、蛋糕、鱼干、鸡腿、可乐、零食），每种饱食度和心情加成不同
 - **互动系统** - 点击抚摸、双击挥手、拖拽移动
-- **状态机** - 9 种状态：待机、开心、进食、睡眠、难过、忙碌、挥手、拖拽、说话
+- **状态机** - 13 种状态：待机、开心、进食、睡眠、难过、忙碌、挥手、拖拽、说话，以及上/下/左/右四个移动方向
 - **消息通知** - 内置模拟器 + JSON 文件监听，为微信/QQ 接入预留接口
 - **属性系统** - 饥饿/心情/能量三维属性，支持离线时间增量计算
 - **数据持久化** - 自动保存/加载宠物状态到 data/pet_state.json
@@ -21,8 +21,9 @@
 - 拖拽投喂需要 tkinterdnd2（pip install tkinterdnd2）
 
 ### 键盘移动
-- 点击宠物选中后，使用方向键移动
-- 方向动画映射到现有状态作为占位
+- 点击宠物选中后，使用方向键（或小键盘方向键）移动
+- 四个方向拥有独立的移动动画（通过 `move_spritesheet.png` 提供）
+- 松开按键后自动恢复待机状态
 
 ### 随机移动
 - 宠物每约 8 秒有 30% 几率随机移动（持续 2 秒）
@@ -63,12 +64,11 @@ pyinstaller -F -w -n DesktopPet main.py
 ## 操作说明
 
 | 操作 | 效果 |
-|------|------|
-| 左键点击 | 选中宠物（移动速度 8） |
-| 右键点击 | 取消选中 |
+|-----|------|
+| 左键点击（未拖拽） | 选中 / 取消选中宠物，并抚摸互动 |
 | 拖拽鼠标 | 移动宠物窗口 |
-| 右键菜单 | 投喂、互动、挥手、睡眠/唤醒、查看状态、测试消息、退出 |
-| 方向键/小键盘 | 选中时移动宠物 |
+| 右键菜单 | 投喂、互动、挥手、睡眠/唤醒…… |
+| 方向键 | 选中时移动宠物 |
 | ESC | 退出程序 |
 
 ## 配置文件
@@ -91,20 +91,25 @@ pyinstaller -F -w -n DesktopPet main.py
   "auto_save_interval": 60.0,
   "demo_message_interval": 45.0,
   "bubble_seconds": 6.0,
-  "beep_on_message": true
+  "beep_on_message": true,
+  "use_move_spritesheet": true,
+  "drag_threshold": 3
 }
 ```
 
 ## 精灵图规范
 
-如需替换自定义贴图，请按以下规范制作 pet/assets/sprites/spritesheet.png：
+如需替换自定义贴图，请按以下规范制作：
 
+pet/assets/sprites/spritesheet.png：
+- 仅包含 9 个情绪状态（idle ~ speaking）
+- 移动状态使用独立的 `move_spritesheet.png`
 - **画布尺寸**：1536 × 1872 像素（8 列 × 9 行，每格 192 × 208）
 - **背景**：透明
 - **行号对应状态**（可在 config.json 中修改 atlas.row_map）：
 
 | 行号 | 状态名 | 说明 |
-|------|--------|------|
+|------|--------|-----|
 | 0 | idle | 待机/眨眼/环顾 |
 | 1 | happy | 开心/跳跃 |
 | 2 | eating | 进食/张嘴 |
@@ -112,15 +117,33 @@ pyinstaller -F -w -n DesktopPet main.py
 | 4 | sad | 难过/流泪 |
 | 5 | busy | 忙碌/敲键盘/电脑屏幕 |
 | 6 | waving | 挥手/打招呼 |
-| 7 | drag | 被拖拽/身体扁平 |
+| 7 | drag | 被拖拽 |
 | 8 | speaking | 说话/张嘴 |
 
 每行帧数建议参考 pet/states.py 中的 STATE_TIMING（每状态每帧时长表）。
+
+
 
 **生成占位精灵图：**
 ```bash
 python tools/make_placeholder_sheet.py
 ```
+
+pet/assets/sprites/move_spritesheet.png：
+
+- **画布尺寸**：768 × 832 像素（4 列 × 4 行，每格 192 × 208）
+- **背景**：透明
+- **行号对应状态**（可在 config.json 中修改 move_atlas.row_map）：
+
+| 行号 | 状态名 | 说明   |
+|------|--------|------|
+| 0 | move_up | 向上移动 |
+| 1 | move_down | 向下移动 |
+| 2 | move_left | 向左移动 |
+| 3 | move_right | 向右移动 |
+
+
+每行帧数建议参考 pet/states.py 中的 STATE_TIMING（每状态每帧时长表）。
 
 ## 消息通知接入
 

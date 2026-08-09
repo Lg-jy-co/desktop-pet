@@ -8,10 +8,10 @@ dist/
 *.egg-info/
 
 # 运行时数据（不提交）
-data/pet_state.json
-data/inbox.json
+data/
 
 # IDE
+.venv/
 .vscode/
 .idea/
 *.swp
@@ -27,3 +27,6 @@ Thumbs.db
 
 # 项目规划
 target.md
+
+# 调试工具
+tools/

@@ -20,6 +20,12 @@ class PetState(str, Enum):
     DRAG = "drag"
     SPEAKING = "speaking"
 
+    # 移动状态
+    MOVE_UP = "move_up"
+    MOVE_DOWN = "move_down"
+    MOVE_LEFT = "move_left"
+    MOVE_RIGHT = "move_right"
+
 
 # 每个状态的一帧时长（毫秒）。最后一帧通常是“停留帧”。
 STATE_TIMING: dict[PetState, list[int]] = {
@@ -32,6 +38,12 @@ STATE_TIMING: dict[PetState, list[int]] = {
     PetState.BUSY: [120, 120, 120, 120, 220],
     PetState.DRAG: [100, 100, 200],
     PetState.SPEAKING: [150, 150, 150, 280],
+
+    # 移动状态
+    PetState.MOVE_UP: [120, 120, 120, 120],
+    PetState.MOVE_DOWN: [120, 120, 120, 120],
+    PetState.MOVE_LEFT: [120, 120, 120, 120],
+    PetState.MOVE_RIGHT: [120, 120, 120, 120]
 }
 
 # 有“情绪”的状态播完一遍后回到 idle；睡眠/拖动由外部控制退出

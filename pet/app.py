@@ -1,4 +1,6 @@
-﻿import os
+﻿# app.py
+
+import os
 import random
 import time
 import tkinter as tk
@@ -51,7 +53,7 @@ class PetApp:
             path = SPRITES_DIR / "spritesheet.png"
             if path.exists():
                 try:
-                    sheet = Spritesheet(root, path, self.cfg.atlas)
+                    sheet = Spritesheet(root, self.cfg)
                     print(f"[app] 已加载图集：{path.name}")
                 except Exception as exc:
                     print(f"[app] 图集加载失败，改用矩形占位绘制：{exc}")
@@ -88,6 +90,8 @@ class PetApp:
         self.notifier.start()
         self.animator.play(PetState.IDLE, loop=True, now=time.time())
         self._tick()
+
+        self._drag_start_pos = (0, 0)
 
     def run(self) -> None:
         self.window.root.mainloop()
@@ -155,20 +159,32 @@ class PetApp:
             self.animator.play(PetState.SPEAKING, now=now)
 
     def _handle_movement(self, now: float) -> None:
+        # 键盘移动
         if self._selected and (self._move_direction[0] != 0 or self._move_direction[1] != 0):
             dx, dy = self._move_direction
             self._move_pet(dx * self._move_speed, dy * self._move_speed)
             self._update_move_animation(dx, dy)
-        if not self._selected and not self._sleeping and not self._is_random_moving:
-            if now - self._last_random_move > self._random_move_interval:
-                if random.random() < 0.3:
-                    self._start_random_move(now)
-        if self._is_random_moving:
-            if now >= self._random_move_end:
-                self._stop_random_move()
+            return  # 有键盘移动时不处理随机移动，也不重置状态
+
+        # 随机移动
+        if not self._selected and not self._sleeping and not self._dragged:
+            if not self._is_random_moving:
+                if now - self._last_random_move > self._random_move_interval:
+                    if random.random() < 0.3:
+                        self._start_random_move(now)
             else:
-                dx, dy = self._move_direction
-                self._move_pet(dx * self._move_speed, dy * self._move_speed)
+                if now >= self._random_move_end:
+                    self._stop_random_move()
+                else:
+                    dx, dy = self._move_direction
+                    self._move_pet(dx * self._move_speed, dy * self._move_speed)
+                    self._update_move_animation(dx, dy)
+                    return  # 正在随机移动，不重置
+
+        # 如果当前状态是移动状态，且不在移动中（键盘/随机），回到 IDLE
+        if self.animator.state in (PetState.MOVE_UP, PetState.MOVE_DOWN,
+                                   PetState.MOVE_LEFT, PetState.MOVE_RIGHT):
+            self.animator.play(PetState.IDLE, loop=True, now=time.time())
 
     def _start_random_move(self, now: float) -> None:
         self._is_random_moving = True
@@ -201,17 +217,13 @@ class PetApp:
         if self._sleeping or self._dragged:
             return
         if dx > 0 and dy == 0:
-            if self.animator.state != PetState.WAVING:
-                self.animator.play(PetState.WAVING, loop=True, now=time.time())
+            self.animator.play(PetState.MOVE_RIGHT, loop=True, now=time.time())
         elif dx < 0 and dy == 0:
-            if self.animator.state != PetState.HAPPY:
-                self.animator.play(PetState.HAPPY, loop=True, now=time.time())
+            self.animator.play(PetState.MOVE_LEFT, loop=True, now=time.time())
         elif dy < 0 and dx == 0:
-            if self.animator.state != PetState.SPEAKING:
-                self.animator.play(PetState.SPEAKING, loop=True, now=time.time())
+            self.animator.play(PetState.MOVE_UP, loop=True, now=time.time())
         elif dy > 0 and dx == 0:
-            if self.animator.state != PetState.SAD:
-                self.animator.play(PetState.SAD, loop=True, now=time.time())
+            self.animator.play(PetState.MOVE_DOWN, loop=True, now=time.time())
         elif dx != 0 and dy != 0:
             if self.animator.state != PetState.BUSY:
                 self.animator.play(PetState.BUSY, loop=True, now=time.time())
@@ -245,6 +257,9 @@ class PetApp:
                    "KP_Home", "KP_Prior", "KP_End", "KP_Next", "KP_Begin"):
             self._move_direction = (0, 0)
             if not self._is_random_moving and not self._sleeping and not self._dragged:
+                self.animator.play(PetState.IDLE, loop=True, now=time.time())
+            if self.animator.state in (PetState.MOVE_UP, PetState.MOVE_DOWN,
+                                       PetState.MOVE_LEFT, PetState.MOVE_RIGHT):
                 self.animator.play(PetState.IDLE, loop=True, now=time.time())
 
     def _setup_drop_target(self) -> None:
@@ -378,13 +393,23 @@ class PetApp:
 
     def _drag_start(self, event: tk.Event) -> None:  # 加上 event 参数
         self._dragged = False
+        self._drag_start_pos = (event.x_root, event.y_root)
         self._selected = False
+        if self._is_random_moving:
+            self._stop_random_move()
         self.window.set_click_through(False)
 
     def _drag_move(self, event: tk.Event = None) -> None:
-        self._dragged = True
-        if not self._sleeping and self.animator.state != PetState.DRAG:
-            self.animator.play(PetState.DRAG, loop=True, now=time.time())
+        # 只有移动超过 3 像素，才认为是拖拽
+        if not self._dragged:
+            dx = event.x_root - self._drag_start_pos[0]
+            dy = event.y_root - self._drag_start_pos[1]
+            if abs(dx) > 3 or abs(dy) > self.cfg.drag_threshold:
+                self._dragged = True
+
+        if self._dragged:
+            if not self._sleeping and self.animator.state != PetState.DRAG:
+                self.animator.play(PetState.DRAG, loop=True, now=time.time())
 
     def _drag_end(self, event: tk.Event) -> None:
         self.window.set_click_through(self.cfg.click_through)  # 恢复穿透设置

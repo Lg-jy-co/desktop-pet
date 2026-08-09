@@ -1,3 +1,5 @@
+# fix_drag_click.py
+
 import sys
 sys.path.insert(0, r'F:\Program_data\pycharm_data\MyDesktop\desktop-pet')
 

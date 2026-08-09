@@ -1,3 +1,5 @@
+# make_placeholder_sheet.py
+
 """生成占位精灵图集：pet/assets/sprites/spritesheet.png
 
 规格与 hatch-pet 一致：8 列 x 9 行，每格 192x208，PNG 透明背景。
