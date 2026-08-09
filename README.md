@@ -39,7 +39,6 @@
 ## 快速开始
 
 ```bash
-cd desktop-pet
 python main.py
 ```
 
