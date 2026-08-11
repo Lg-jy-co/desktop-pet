@@ -1,3 +1,5 @@
+# states.py
+
 """宠物状态机。
 
 状态名与精灵图集的行一一对应（见 config.AtlasConfig.row_map）。

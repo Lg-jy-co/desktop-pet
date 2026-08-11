@@ -121,6 +121,10 @@ class PetConfig:
     move_atlas: MoveAtlasConfig = field(default_factory=MoveAtlasConfig)
     drag_threshold: int = 3  # 拖拽判定最小位移（像素）
 
+    # 新增
+    random_move_interval: float = 8.0  # 随机移动间隔（秒）
+    move_speed: int = 10  # 键盘/随机移动速度（像素/帧）
+
 
 def _deep_merge(base: dict, override: dict) -> dict:
     for key, value in override.items():

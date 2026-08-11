@@ -187,6 +187,7 @@ desktop-pet/
 │   ├── foods.py
 │   ├── notifier.py
 │   ├── config.py
+│   ├── gui_panel.py
 │   └── assets/
 │       ├── sprites/
 │       └── sounds/
@@ -205,11 +206,12 @@ desktop-pet/
 - [x] 核心框架（窗口、渲染、状态机、属性、投喂、持久化）
 - [x] 消息通知框架（模拟器 + JSON 文件监听）
 - [x] 占位精灵图生成器
+- [x] 设置界面（GUI）
 - [ ] 微信 Hook 实现（需第三方库或 adb）
 - [ ] QQ Hook 实现
 - [ ] 系统托盘图标
 - [ ] 更多食物/动作/语音
-- [ ] 设置界面（GUI）
+
 
 ## 许可证
 

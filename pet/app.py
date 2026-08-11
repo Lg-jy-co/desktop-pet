@@ -67,10 +67,10 @@ class PetApp:
         self._last_random = time.time()
         self._last_save = time.time()
         self._last_random_move = time.time()
-        self._move_speed = 10
+        self._move_speed = self.cfg.move_speed
         self._selected = False
         self._move_direction = (0, 0)
-        self._random_move_interval = 8.0
+        self._random_move_interval = self.cfg.random_move_interval
         self._random_move_duration = 2.0
         self._is_random_moving = False
         self._random_move_end = 0.0
@@ -170,7 +170,7 @@ class PetApp:
         if not self._selected and not self._sleeping and not self._dragged:
             if not self._is_random_moving:
                 if now - self._last_random_move > self._random_move_interval:
-                    if random.random() < 0.3:
+                    if random.random() < self.cfg.random_action_chance:
                         self._start_random_move(now)
             else:
                 if now >= self._random_move_end:
@@ -469,6 +469,7 @@ class PetApp:
         menu.add_command(label="😴 睡眠/唤醒", command=self._toggle_sleep)
         menu.add_command(label="📊 查看状态", command=self._show_status)
         menu.add_command(label="🔔 测试消息", command=self._test_message)
+        menu.add_command(label="⚙️ 控制面板", command=self.open_control_panel)
         menu.add_separator()
         menu.add_command(label="🚪 退出", command=self.quit)
         self._menu = menu
@@ -483,3 +484,19 @@ class PetApp:
         self.stats.save()
         self.notifier.stop()
         self.window.root.destroy()
+
+    def open_control_panel(self) -> None:
+        """打开控制面板。"""
+        from .gui_panel import ControlPanel
+        ControlPanel(self)  # 它自己会显示为非模态窗口
+
+    def apply_config(self) -> None:
+        """将当前配置即时同步到运行时的各项参数。"""
+        self.rates = DecayRates(
+            hunger_per_hour=self.cfg.hunger_per_hour,
+            mood_per_hour=self.cfg.mood_per_hour,
+            energy_per_hour=self.cfg.energy_per_hour,
+            energy_recover_per_hour=self.cfg.energy_recover_per_hour,
+        )
+        self._move_speed = self.cfg.move_speed
+        self._random_move_interval = self.cfg.random_move_interval
