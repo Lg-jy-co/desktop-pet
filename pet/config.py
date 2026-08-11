@@ -16,19 +16,28 @@ BASE_DIR = Path(__file__).resolve().parent          # pet/
 PROJECT_DIR = BASE_DIR.parent                       # 项目根
 
 
-def _app_root() -> Path:
-    """打包成 exe 后，把数据和资源都放在 exe 同级目录，方便迁移。"""
+def _resource_root() -> Path:
+    """只读资源根目录：开发时用项目根，打包后用 sys._MEIPASS。"""
+    if getattr(sys, "frozen", False):
+        # PyInstaller 单文件/单目录都会设置 _MEIPASS
+        return Path(sys._MEIPASS)
+    return PROJECT_DIR
+
+def _data_root() -> Path:
+    """可写数据根目录：始终与 exe 同目录（或用户目录），方便迁移。"""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return PROJECT_DIR
 
 
-APP_ROOT = _app_root()
-ASSETS_DIR = APP_ROOT / "pet" / "assets"
+RESOURCE_ROOT = _resource_root()
+APP_ROOT = _data_root()
+
+ASSETS_DIR = RESOURCE_ROOT / "pet" / "assets"
 SPRITES_DIR = ASSETS_DIR / "sprites"
 SOUNDS_DIR = ASSETS_DIR / "sounds"
-DATA_DIR = APP_ROOT / "data"
 
+DATA_DIR = APP_ROOT / "data"
 CONFIG_FILE = DATA_DIR / "config.json"
 STATE_FILE = DATA_DIR / "pet_state.json"
 INBOX_FILE = DATA_DIR / "inbox.json"
