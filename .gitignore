@@ -7,8 +7,9 @@ build/
 dist/
 *.egg-info/
 
-# 运行时数据（不提交）
+# 运行时数据
 data/
+pet/assets/sprites/
 
 # IDE
 .venv/
@@ -30,3 +31,4 @@ target.md
 
 # 调试工具
 tools/
+tests/

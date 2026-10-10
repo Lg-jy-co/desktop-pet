@@ -55,7 +55,7 @@ class Renderer:
     def draw(self, state: PetState, frame: int, bubble: Bubble | None = None) -> None:
         self.canvas.delete("pet")
         self.canvas.delete("bubble")
-        self._image_item = None  # ?????????????????
+        self._image_item = None
         if self.sheet is not None:
             self._draw_image(state, frame)
         else:

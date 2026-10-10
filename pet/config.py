@@ -41,6 +41,7 @@ DATA_DIR = APP_ROOT / "data"
 CONFIG_FILE = DATA_DIR / "config.json"
 STATE_FILE = DATA_DIR / "pet_state.json"
 INBOX_FILE = DATA_DIR / "inbox.json"
+FIRST_RUN_FLAG = DATA_DIR / ".first_run_done"
 
 # 透明键色：窗口里这个颜色的像素会完全透明（Windows Tk 特性）
 MAGENTA = "#ff00ff"
@@ -76,7 +77,7 @@ class AtlasConfig:
 @dataclass
 class MoveAtlasConfig:
     file: str = "move_spritesheet.png"
-    cols: int = 4          # 每行帧数，可以根据你的 n 调整
+    cols: int = 8          # 每行帧数，可以根据你的 n 调整
     rows: int = 4          # 4 个方向
     cell_w: int = 192      # 与主图集单格相同，便于统一
     cell_h: int = 208
@@ -118,7 +119,7 @@ class PetConfig:
     random_action_chance: float = 0.5     # 每次随机判定概率
 
     # ---- 消息提醒 ----
-    demo_message_interval: float = 45.0   # 模拟消息间隔（0=关闭）
+    demo_message_interval: float = 0.0   # 模拟消息间隔（0=关闭）
     inbox_poll_interval: float = 2.0      # 监听 data/inbox.json 的轮询间隔
     bubble_seconds: float = 6.0           # 气泡显示时长
     beep_on_message: bool = True
@@ -169,8 +170,8 @@ def load_config() -> PetConfig:
         try:
             raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
             cfg = _from_raw(cfg, raw)
-        except Exception as exc:  # ??????????
-            print(f"[config] ?? {CONFIG_FILE} ??????????{exc}")
+        except Exception as exc:
+            print(f"[config] 读取 {CONFIG_FILE} 失败：{exc}")
     else:
         # 首次运行：生成一份默认配置，方便用户按需修改
         try:

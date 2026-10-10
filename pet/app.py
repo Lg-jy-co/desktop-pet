@@ -4,18 +4,17 @@ import os
 import random
 import time
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import winsound
-from pathlib import Path
 
-from .config import SPRITES_DIR, PetConfig, load_config
+from .config import FIRST_RUN_FLAG, SPRITES_DIR, PetConfig, load_config
 from .foods import FOODS, Food, calculate_file_feed_value, create_food_from_file
 from .notifier import Message, Notifier
 from .renderer import Bubble, Renderer
 from .spritesheet import Spritesheet
 from .states import LOOP_BACK_TO_IDLE, Animator, PetState
 from .stats import DecayRates, PetStats
-from .window import PetWindow
+from .window import PetWindow, get_work_area
 
 PET_SAYINGS = [
     "喵呜喵呜~",
@@ -89,12 +88,61 @@ class PetApp:
 
         self.notifier.start()
         self.animator.play(PetState.IDLE, loop=True, now=time.time())
-        self._tick()
 
         self._drag_start_pos = (0, 0)
 
+        self._tick()
+        root.after(200, self._maybe_show_first_run)
+
     def run(self) -> None:
         self.window.root.mainloop()
+
+    def _maybe_show_first_run(self) -> None:
+        if FIRST_RUN_FLAG.exists():
+            return
+        try:
+            self._show_intro_dialog()
+        finally:
+            try:
+                FIRST_RUN_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                FIRST_RUN_FLAG.write_text("1", encoding="utf-8")
+            except Exception as exc:
+                print(f"[app] 写入首次启动标记失败：{exc}")
+
+    def _show_intro_dialog(self) -> None:
+        root = self.window.root
+        win = tk.Toplevel(root)
+        win.title("欢迎使用桌面宠物")
+        win.resizable(False, False)
+        win.transient(root)
+        win.attributes("-topmost", True)
+
+        body = (
+            "使用前请务必了解以下内容：\n\n"
+            "1. 拖入宠物的文件会被【永久删除】，无法恢复，也不会进回收站。\n"
+            "   请只拖入你确认不再需要的文件。\n\n"
+            "2. 删除前不会有二次确认，请谨慎操作。\n\n"
+            "3. 右键菜单里的“📁 本地文件投喂”同样会删除文件。\n\n"
+            "4. 只想投喂、不想删文件？请使用菜单里的虚拟食物（苹果、蛋糕等）。\n"
+        )
+
+        tk.Label(win, text="⚠️ 投喂即删除", font=("Microsoft YaHei UI", 13, "bold"),
+                 fg="#c0392b").pack(pady=(16, 6))
+        tk.Label(win, text=body, justify="left", wraplength=440,
+                 font=("Microsoft YaHei UI", 10)).pack(padx=24, pady=(0, 12), anchor="w")
+
+        tk.Button(win, text="我已知悉，开始使用",
+                  font=("Microsoft YaHei UI", 10), width=20,
+                  command=win.destroy).pack(pady=(0, 18))
+
+        # 居中到屏幕
+        win.update_idletasks()
+        w, h = win.winfo_width(), win.winfo_height()
+        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+        win.geometry(f"+{(sw - w) // 2}+{(sh - h) // 2}")
+
+        win.grab_set()
+        win.wait_window()
 
     def _tick(self) -> None:
         try:
@@ -205,12 +253,11 @@ class PetApp:
         root = self.window.root
         x = root.winfo_x() + dx
         y = root.winfo_y() + dy
-        sw = root.winfo_screenwidth()
-        sh = root.winfo_screenheight()
-        w = self.cfg.window_w
-        h = self.cfg.window_h
-        x = max(0, min(sw - w, x))
-        y = max(0, min(sh - h, y))
+        w, h = self.cfg.window_w, self.cfg.window_h
+        # 用宠物窗口中心点判断当前在哪个显示器
+        left, top, right, bottom = get_work_area(x + w // 2, y + h // 2)
+        x = max(left, min(right - w, x))
+        y = max(top, min(bottom - h, y))
         root.geometry(f"+{x}+{y}")
 
     def _update_move_animation(self, dx: int, dy: int) -> None:
@@ -356,7 +403,14 @@ class PetApp:
                 ("压缩包", "*.zip *.rar *.7z"),
             ]
         )
-        if file_path:
+        if not file_path:
+            return
+        ok = messagebox.askyesno(
+            "确认投喂",
+            f"此文件将被【永久删除】，无法恢复：\n\n{file_path}\n\n确定继续吗？",
+            parent=self.window.root,
+        )
+        if ok:
             self._feed_file(file_path)
 
     def _wave(self) -> None:
@@ -404,7 +458,7 @@ class PetApp:
         if not self._dragged:
             dx = event.x_root - self._drag_start_pos[0]
             dy = event.y_root - self._drag_start_pos[1]
-            if abs(dx) > 3 or abs(dy) > self.cfg.drag_threshold:
+            if abs(dx) > self.cfg.drag_threshold or abs(dy) > self.cfg.drag_threshold:
                 self._dragged = True
 
         if self._dragged:

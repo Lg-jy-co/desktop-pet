@@ -42,8 +42,8 @@ STATE_TIMING: dict[PetState, list[int]] = {
     PetState.SPEAKING: [150, 150, 150, 280],
 
     # 移动状态
-    PetState.MOVE_UP: [120, 120, 120, 120],
-    PetState.MOVE_DOWN: [120, 120, 120, 120],
+    PetState.MOVE_UP: [120, 120, 120, 60, 120, 120, 120, 60],
+    PetState.MOVE_DOWN: [120, 120, 120, 60, 120, 120, 120, 60],
     PetState.MOVE_LEFT: [120, 120, 120, 120],
     PetState.MOVE_RIGHT: [120, 120, 120, 120]
 }

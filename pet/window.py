@@ -12,6 +12,8 @@ import tkinter as tk
 from typing import Callable
 
 from .config import MAGENTA, PetConfig
+from ctypes import wintypes
+
 
 GWL_EXSTYLE = -20
 WS_EX_LAYERED = 0x00080000
@@ -22,6 +24,47 @@ _user32.GetWindowLongPtrW.restype = ctypes.c_longlong
 _user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
 _user32.SetWindowLongPtrW.restype = ctypes.c_longlong
 _user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_longlong]
+_user32.GetParent.argtypes = [ctypes.c_void_p]
+_user32.GetParent.restype = ctypes.c_void_p
+
+MONITOR_DEFAULTTONEAREST = 0x00000002
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", wintypes.LONG),
+        ("top", wintypes.LONG),
+        ("right", wintypes.LONG),
+        ("bottom", wintypes.LONG),
+    ]
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", _RECT),
+        ("rcWork", _RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+_user32.MonitorFromPoint.argtypes = [wintypes.POINT, wintypes.DWORD]
+_user32.MonitorFromPoint.restype = ctypes.c_void_p          # HMONITOR
+_user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_MONITORINFO)]
+_user32.GetMonitorInfoW.restype = wintypes.BOOL
+
+def get_work_area(x: int, y: int) -> tuple[int, int, int, int]:
+    """返回包含点 (x, y) 的那个显示器的工作区（left, top, right, bottom）。
+
+    用工作区而不是整个显示器区域，宠物不会跑到任务栏下面。
+    """
+    hmon = _user32.MonitorFromPoint(
+        wintypes.POINT(x, y), MONITOR_DEFAULTTONEAREST
+    )
+    info = _MONITORINFO()
+    info.cbSize = ctypes.sizeof(_MONITORINFO)
+    _user32.GetMonitorInfoW(hmon, ctypes.byref(info))
+    r = info.rcWork
+    return r.left, r.top, r.right, r.bottom
 
 
 class PetWindow:

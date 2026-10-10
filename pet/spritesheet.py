@@ -1,4 +1,4 @@
-# spriteshht.py
+# spritesheet.py
 
 """精灵图集加载。
 
@@ -32,7 +32,6 @@ class Spritesheet:
             for col in range(count):
                 x, y = col * cw, row * ch
                 cell = tk.PhotoImage(width=cw, height=ch)
-                # ???? tkinter API????? copy_replace(from_coords=...)
                 try:
                     cell.copy_replace(
                         self.sheet,

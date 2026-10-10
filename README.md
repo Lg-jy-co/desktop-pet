@@ -175,7 +175,6 @@ class WeChatHook(BaseHook):
 ```
 desktop-pet/
 ├── main.py
-├── requirements.txt
 ├── pet/
 │   ├── __init__.py
 │   ├── app.py
