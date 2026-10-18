@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import json
+import ctypes
+from ctypes import wintypes
 import tkinter as tk
 from tkinter import ttk, messagebox
 from dataclasses import asdict
@@ -20,6 +22,47 @@ if TYPE_CHECKING:
     from .app import PetApp
 
 
+class ScrollableFrame(tk.Frame):
+    """带垂直滚动条的 Frame"""
+
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+
+        # 创建 Canvas 和 Scrollbar
+        self.canvas = tk.Canvas(self, bg="#f0f0f0", highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+
+        # 实际放置内容的 Frame
+        self.inner_frame = tk.Frame(self.canvas, bg="#f0f0f0")
+
+        self.inner_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+
+        self.window_id = self.canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        # 让 inner_frame 的宽度随 Canvas 变化
+        self.canvas.bind(
+            "<Configure>",
+            lambda e: self.canvas.itemconfig(self.window_id, width=e.width)
+        )
+
+        # 绑定鼠标滚轮
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _on_mousewheel(self, event):
+        # 直接通过坐标判断鼠标是否在 Canvas 区域内，避开 Tkinter 内部组件查找的 Bug
+        x = self.canvas.winfo_pointerx() - self.canvas.winfo_rootx()
+        y = self.canvas.winfo_pointery() - self.canvas.winfo_rooty()
+        if 0 <= x <= self.canvas.winfo_width() and 0 <= y <= self.canvas.winfo_height():
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+
 class ControlPanel:
     """控制面板 Toplevel 窗口。"""
 
@@ -30,11 +73,26 @@ class ControlPanel:
 
         self.win = tk.Toplevel(app.window.root)
         self.win.title("宠物控制面板")
-        self.win.geometry("520x440")
-        self.win.resizable(False, False)
+        self.win.geometry("550x530")
+        self.win.resizable(True, True)    # 允许调节窗口大小
         self.win.configure(bg="#f0f0f0")
-        self.win.transient(app.window.root)
+        # self.win.transient(app.window.root)
         self.win.protocol("WM_DELETE_WINDOW", self._close)
+        self.win.attributes("-topmost", False)    # 取消置顶
+        self.win.update_idletasks()  # 确保窗口 HWND 已经生成
+        hwnd = ctypes.windll.user32.GetParent(self.win.winfo_id())
+        self.win.lift()
+        GWL_EXSTYLE = -20
+        WS_EX_APPWINDOW = 0x00040000
+        WS_EX_TOOLWINDOW = 0x00000080
+
+        # 获取当前扩展样式
+        style = ctypes.windll.user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        # 去掉工具窗口样式（使其显示在任务栏）
+        style &= ~WS_EX_TOOLWINDOW
+        # 加上应用窗口样式（强制显示在 Alt+Tab）
+        style |= WS_EX_APPWINDOW
+        ctypes.windll.user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style)
 
         # 左侧导航
         self.nav_frame = tk.Frame(self.win, bg="#e0e0e0", width=120)
@@ -53,9 +111,10 @@ class ControlPanel:
             btn.pack(fill="x", pady=1, padx=2)
             self.nav_btns[cat] = btn
 
-        # 右侧内容区域
-        self.content_frame = tk.Frame(self.win, bg="#f0f0f0")
-        self.content_frame.pack(side="left", fill="both", expand=True)
+        # 右侧内容区域 带滚动条
+        self.scroll_area = ScrollableFrame(self.win, bg="#f0f0f0")
+        self.scroll_area.pack(side="left", fill="both", expand=True)
+        self.content_frame = self.scroll_area.inner_frame  # 实际的父容器
 
         self.current_page: str | None = None
         self._status_widgets: dict[str, tk.Widget] = {}
@@ -103,9 +162,9 @@ class ControlPanel:
         row = tk.Frame(parent, bg="#f0f0f0")
         row.pack(fill="x", pady=6)
         tk.Label(row, text=label, width=6, anchor="e", bg="#f0f0f0", font=("Microsoft YaHei UI", 10)).pack(side="left", padx=(0, 8))
-        bar = ttk.Progressbar(row, orient="horizontal", length=280, mode="determinate", maximum=maximum)
+        bar = ttk.Progressbar(row, orient="horizontal", length=200, mode="determinate", maximum=maximum)
         bar.pack(side="left", fill="x", expand=True)
-        lbl_val = tk.Label(row, text="0.0 / 100.0", width=12, anchor="w", bg="#f0f0f0", font=("Microsoft YaHei UI", 10))
+        lbl_val = tk.Label(row, text="0.0 / 100.0", width=10, anchor="w", bg="#f0f0f0", font=("Microsoft YaHei UI", 10))
         lbl_val.pack(side="left", padx=8)
         bar.label_widget = lbl_val
         return bar
@@ -197,6 +256,16 @@ class ControlPanel:
 
         ttk.Separator(f, orient="horizontal").pack(fill="x", pady=10)
 
+        tk.Label(f, text="状态阈值", font=("Microsoft YaHei UI", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
+        self._add_slider(f, "饥饿阈值", "hungry_threshold", 0.0, 100.0, 1.0, self.cfg.hungry_threshold)
+        self._add_slider(f, "极度饥饿阈值", "starving_threshold", 0.0, 100.0, 1.0, self.cfg.starving_threshold)
+        self._add_slider(f, "困倦阈值", "sleepy_threshold", 0.0, 100.0, 1.0, self.cfg.sleepy_threshold)
+        self._add_slider(f, "开心阈值", "happy_threshold", 0.0, 100.0, 1.0, self.cfg.happy_threshold)
+        self._add_slider(f, "饥饿抱怨间隔 (秒)", "starving_complain_interval", 10.0, 300.0, 5.0,
+                         self.cfg.starving_complain_interval)
+
+        ttk.Separator(f, orient="horizontal").pack(fill="x", pady=10)
+
         tk.Label(f, text="行为设置", font=("Microsoft YaHei UI", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
         self._add_slider(f, "随机行为间隔 (秒)", "random_action_interval", 5.0, 120.0, 1.0, self.cfg.random_action_interval)
         self._add_slider(f, "随机行为概率", "random_action_chance", 0.0, 1.0, 0.05, self.cfg.random_action_chance)
@@ -212,14 +281,14 @@ class ControlPanel:
                     from_: float, to_: float, resolution: float, default: float) -> None:
         row = tk.Frame(parent, bg="#f0f0f0")
         row.pack(fill="x", pady=3)
-        tk.Label(row, text=label, bg="#f0f0f0", width=20, anchor="w",
+        tk.Label(row, text=label, bg="#f0f0f0", width=16, anchor="w",
                  font=("Microsoft YaHei UI", 9)).pack(side="left")
 
         var = tk.StringVar(value=f"{default:.1f}" if isinstance(default, float) else str(default))
         s = tk.Scale(row, from_=from_, to=to_, resolution=resolution, orient="horizontal",
-                     variable=var, length=180, showvalue=False, bg="#f0f0f0")
+                     variable=var, length=150, showvalue=False, bg="#f0f0f0")
         s.pack(side="left", padx=4)
-        val_lbl = tk.Label(row, textvariable=var, width=6, bg="#f0f0f0",
+        val_lbl = tk.Label(row, textvariable=var, width=5, bg="#f0f0f0",
                            font=("Microsoft YaHei UI", 9))
         val_lbl.pack(side="left")
         self._sliders[key] = (s, var)

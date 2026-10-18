@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+import dataclasses
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -109,8 +110,13 @@ class PetConfig:
     mood_per_hour: float = 0.7            # 每小时降低的心情
     energy_per_hour: float = 1.1          # 每小时降低的精力
     energy_recover_per_hour: float = 35.0  # 睡眠时每小时恢复的精力
-    hungry_threshold: float = 75.0    # 高于此值显示“饿”状态
-    sleepy_threshold: float = 22.0    # 低于此值显示“困”状态
+
+    # ---- 状态阈值 ----
+    hungry_threshold: float = 75.0  # 高于此值显示“饿”状态
+    starving_threshold: float = 95.0  # 高于此值进入“极度饥饿”状态
+    sleepy_threshold: float = 22.0  # 低于此值显示“困”状态
+    happy_threshold: float = 85.0  # 高于此值显示“高兴”状态
+    starving_complain_interval: float = 120.0  # 极度饥饿时抱怨的间隔（秒）
 
     # ---- 行为 ----
     auto_save_interval: float = 60.0  # 秒
@@ -145,10 +151,13 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
-def _from_raw(cfg: PetConfig, raw: dict) -> PetConfig:
+def from_raw_dict(cfg: PetConfig, raw: dict) -> PetConfig:
     """把用户 JSON 覆盖到默认配置上，返回新配置。"""
     merged = asdict(cfg)
     _deep_merge(merged, raw)
+    # 过滤掉 PetConfig 不认识的字段
+    valid_fields = {f.name for f in dataclasses.fields(PetConfig)}
+    merged = {k: v for k, v in merged.items() if k in valid_fields}
     # 处理主图集
     atlas = merged.get("atlas")
     if isinstance(atlas, dict):

@@ -111,8 +111,10 @@ class PetWindow:
         if self.cfg.start_x is not None and self.cfg.start_y is not None:
             x, y = self.cfg.start_x, self.cfg.start_y
         else:
-            x = self.root.winfo_screenwidth() - w - 48
-            y = self.root.winfo_screenheight() - h - 96
+            # 获取主屏的工作区
+            left, top, right, bottom = get_work_area(0, 0)
+            x = right - w - 48
+            y = bottom - h - 48  # 距离底部留 48 像素
         self.root.geometry(f"{w}x{h}+{x}+{y}")
 
     # ---- 拖动 ----

@@ -14,12 +14,12 @@ import json
 from pathlib import Path
 
 from pet.app import PetApp
-from pet.config import PetConfig, _from_raw, load_config
+from pet.config import PetConfig, from_raw_dict, load_config
 
 
 def _apply_file(cfg: PetConfig, path: Path) -> PetConfig:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    return _from_raw(cfg, raw)
+    return from_raw_dict(cfg, raw)
 
 
 def main() -> None:

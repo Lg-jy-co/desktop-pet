@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import winsound
 
-from .config import FIRST_RUN_FLAG, SPRITES_DIR, PetConfig, load_config
+from .config import FIRST_RUN_FLAG, SPRITES_DIR, load_config
 from .foods import FOODS, Food, calculate_file_feed_value, create_food_from_file
 from .notifier import Message, Notifier
 from .renderer import Bubble, Renderer
@@ -29,7 +29,12 @@ RANDOM_SPEECH = [
     "明天也要早起哦",
     "注意休息哦",
 ]
-
+STARVING_SAYINGS = [
+    "快饿扁了……",
+    "主人，该投喂了！",
+    "我不行了，要饿死了……",
+    "呜……肚子好痛",
+]
 
 class PetApp:
     def __init__(self, cfg=None) -> None:
@@ -73,6 +78,7 @@ class PetApp:
         self._random_move_duration = 2.0
         self._is_random_moving = False
         self._random_move_end = 0.0
+        self._last_complain = 0.0
 
         self._setup_menu()
         self.window.bind_drag(on_start=self._drag_start, on_move=self._drag_move, on_end=self._drag_end)
@@ -179,13 +185,29 @@ class PetApp:
         if self._sleeping:
             self.animator.play(PetState.SLEEPING, loop=True, now=now)
             return
+
+        # 极度饥饿：强制保持伤心，并定期抱怨
+        if self.stats.is_starving(self.cfg.starving_threshold):
+            if state != PetState.SPEAKING:
+                # 如果不是正在说话，就 SAD
+                self.animator.play(PetState.SAD, loop=True, now=now)
+            # 到达抱怨间隔，就抱怨一句
+            if now - self._last_complain > self.cfg.starving_complain_interval:
+                self._last_complain = now
+                self._say(random.choice(STARVING_SAYINGS))
+                self.animator.play(PetState.SPEAKING, now=now)
+            return
+
+        # 普通行为逻辑
         if state in LOOP_BACK_TO_IDLE and self.animator.finished:
             self.animator.play(PetState.IDLE, loop=True, now=now)
             state = PetState.IDLE
         if state == PetState.IDLE:
-            if self.stats.is_hungry:
+            # 普通饥饿
+            if self.stats.is_hungry(self.cfg.hungry_threshold):
                 self.animator.play(PetState.SAD, now=now)
-            elif self.stats.energy <= 3:
+            # 困倦
+            elif self.stats.is_sleepy(self.cfg.sleepy_threshold):
                 self._auto_sleep(now)
 
     def _maybe_random_action(self, now: float) -> None:

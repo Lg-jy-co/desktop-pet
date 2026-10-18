@@ -96,17 +96,17 @@ class PetStats:
 
     # ---- 状态判定 ----
 
-    @property
-    def is_hungry(self) -> bool:
-        return self.hunger >= 75.0
+    def is_hungry(self, threshold: float) -> bool:
+        return self.hunger >= threshold
 
-    @property
-    def is_sleepy(self) -> bool:
-        return self.energy <= 22.0
+    def is_starving(self, threshold: float) -> bool:
+        return self.hunger >= threshold
 
-    @property
-    def is_happy(self) -> bool:
-        return self.mood >= 85.0
+    def is_sleepy(self, threshold: float) -> bool:
+        return self.energy <= threshold
+
+    def is_happy(self, threshold: float) -> bool:
+        return self.mood >= threshold
 
     def summary(self) -> str:
         return (
