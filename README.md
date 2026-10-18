@@ -14,7 +14,7 @@
 - **数据持久化**：自动保存/加载宠物状态到 `data/pet_state.json`
 - **消息提醒框架**：支持模拟器与 JSON 文件监听，方便外部程序接入
 
-## 📦 安装与运行
+## 📦 安装与打包
 
 ### 1. 安装依赖
 ```bash
@@ -29,6 +29,21 @@ python main.py
 #### 启动参数：
 - `--no-click-through`: 禁用点击穿透（方便调试）
 - `--config <path>`: 指定额外的配置文件路径
+
+### 程序打包
+1. 在项目根目录的终端中安装`pyinstaller`库：
+```bash
+pip install pyinstaller
+```
+2. 在项目根目录执行以下两条命令之一：
+```bash
+# 单文件打包
+pyinstaller --onefile --windowed --name "DesktopPet" --additional-hooks-dir=. --add-data "pet/assets;pet/assets" main.py 
+
+# 依赖文件单独放在一个文件夹
+pyinstaller --windowed --name "DesktopPet" --additional-hooks-dir=. --add-data "pet/assets;pet/assets" main.py 
+
+```
 
 ## 🎮 操作说明
 
@@ -103,6 +118,7 @@ python main.py
 ```
 MyDesktop/
 ├── main.py                 # 入口
+├── hook-tkinterdnd2.py     # 打包依赖
 ├── requirements.txt        # 依赖文件
 ├── pet/                    # 核心包
 │   ├── app.py              # 主逻辑、主循环
