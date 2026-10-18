@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import winsound
 
+from .tray import TrayManager
 from .config import FIRST_RUN_FLAG, SPRITES_DIR, load_config
 from .foods import FOODS, Food, calculate_file_feed_value, create_food_from_file
 from .notifier import Message, Notifier
@@ -93,6 +94,9 @@ class PetApp:
         self._setup_drop_target()
 
         self.notifier.start()
+        # 启动系统托盘
+        self.tray = TrayManager(self)
+        self.tray.start()
         self.animator.play(PetState.IDLE, loop=True, now=time.time())
 
         self._drag_start_pos = (0, 0)
@@ -559,6 +563,8 @@ class PetApp:
     def quit(self) -> None:
         self.stats.save()
         self.notifier.stop()
+        self.tray.stop()    # 停止托盘
+        self.window.root.quit()
         self.window.root.destroy()
 
     def open_control_panel(self) -> None:

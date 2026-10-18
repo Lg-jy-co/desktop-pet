@@ -178,7 +178,7 @@ def load_config() -> PetConfig:
     if CONFIG_FILE.exists():
         try:
             raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            cfg = _from_raw(cfg, raw)
+            cfg = from_raw_dict(cfg, raw)
         except Exception as exc:
             print(f"[config] 读取 {CONFIG_FILE} 失败：{exc}")
     else:

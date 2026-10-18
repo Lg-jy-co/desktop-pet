@@ -409,13 +409,16 @@ class ControlPanel:
     def _toggle_click_through(self) -> None:
         self.cfg.click_through = self._click_through_var.get()
         self.app.window.set_click_through(self.cfg.click_through)
+        self._save_config_to_file()
 
     def _toggle_topmost(self) -> None:
         self.cfg.topmost = self._topmost_var.get()
         self.app.window.root.attributes("-topmost", self.cfg.topmost)
+        self._save_config_to_file()
 
     def _toggle_beep(self) -> None:
         self.cfg.beep_on_message = self._beep_var.get()
+        self._save_config_to_file()
 
     # ---- 保存与恢复 ----
 
