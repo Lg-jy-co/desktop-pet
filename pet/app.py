@@ -1,4 +1,4 @@
-﻿# app.py
+# app.py
 
 import os
 import random
@@ -8,7 +8,7 @@ from tkinter import filedialog, messagebox
 import winsound
 
 from .tray import TrayManager
-from .config import FIRST_RUN_FLAG, SPRITES_DIR, load_config
+from .config import FIRST_RUN_FLAG, SOUNDS_DIR, SPRITES_DIR, load_config
 from .foods import FOODS, Food, calculate_file_feed_value, create_food_from_file
 from .notifier import Message, Notifier
 from .renderer import Bubble, Renderer
@@ -81,6 +81,14 @@ class PetApp:
         self._is_random_moving = False
         self._random_move_end = 0.0
         self._last_complain = 0.0
+
+        # ===== 久坐提醒状态 =====
+        self._sit_reminder_last_trigger = time.time()
+        self._sit_alert_dialog = None  # 当前提醒窗
+        self._sit_rest_dialog = None  # 当前休息窗
+        self._sit_prev_topmost = bool(self.cfg.topmost)  # 弹窗前的置顶状态
+        self._sit_topmost_restore_id = None  # 新增：临时置顶恢复定时器
+        # =======================
 
         self._setup_menu()
         self.window.bind_drag(on_start=self._drag_start, on_move=self._drag_move, on_end=self._drag_end)
@@ -166,6 +174,7 @@ class PetApp:
                 self._bubble = None
             self.renderer.draw(self.animator.state, self.animator.frame, bubble=self._bubble)
             self._maybe_random_action(now)
+            self._check_sit_reminder(now)   # ===== 久坐提醒 =====
             if now - self._last_save > self.cfg.auto_save_interval:
                 self._last_save = now
                 self.stats.save()
@@ -472,7 +481,7 @@ class PetApp:
         self._say("醒啦！")
         self.animator.play(PetState.HAPPY, now=now)
 
-    def _drag_start(self, event: tk.Event) -> None:  # 加上 event 参数
+    def _drag_start(self, event: tk.Event) -> None:
         self._dragged = False
         self._drag_start_pos = (event.x_root, event.y_root)
         self._selected = False
@@ -531,6 +540,176 @@ class PetApp:
     def _hit_test(self, x: int, y: int) -> bool:
         return self.renderer.is_over_body(x, y)
 
+    # ========== 久坐提醒 ==========
+
+    def _sit_menu_label(self) -> str:
+        return "⏰ 久坐提醒（开）" if self.cfg.sit_reminder_enabled else "⏰ 久坐提醒（关）"
+
+    def _open_sit_reminder_dialog(self) -> None:
+        """右键菜单点击：未开启 → 设置；已开启 → 确认关闭。"""
+        try:
+            from .sit_reminder import SitReminderDialog
+            SitReminderDialog(self)
+        except Exception as exc:
+            print(f"[app] 打开久坐提醒对话框失败：{exc}")
+
+    def _reset_sit_reminder_timer(self) -> None:
+        """重置计时起点（用户新设/更新间隔后调用）。"""
+        self._sit_reminder_last_trigger = time.time()
+
+    def _check_sit_reminder(self, now: float) -> None:
+        """每次 _tick 调用，天然实现循环提醒。
+
+        时间轴：A(开/改/休息好) → 久坐计时 → B(提醒窗弹出，冻结) → C(点好的) →
+               休息计时 → D(点我休息好了) → 回到 A
+        弹窗存在期间（B→D）久坐计时必须显式暂停，否则 now-last_trigger 会持续
+        增大、导致每 100ms 重复触发（气泡刷屏、音效刷屏、抢焦点）。
+        """
+        if not self.cfg.sit_reminder_enabled:
+            return
+        # 提醒窗/休息窗存在 → 久坐计时暂停（对应 B→D 段）
+        if self._sit_alert_dialog is not None or self._sit_rest_dialog is not None:
+            return
+        interval = max(1, int(self.cfg.sit_reminder_interval_minutes)) * 60.0
+        if now - self._sit_reminder_last_trigger >= interval:
+            self._sit_reminder_last_trigger = now  # 触发即冻结（终点 B）
+            self._trigger_sit_reminder()
+
+    def _trigger_sit_reminder(self) -> None:
+        try:
+            self._say("⏰ 坐太久啦，起来活动一下吧！")
+            self._play_sit_reminder_sound()
+
+            # 用 cfg.topmost 作为"用户偏好"的权威来源（cfg 是唯一真实来源，
+            # attributes("-topmost") 在不同 Tk 平台可能返回 "0"/"1" 字符串，
+            # bool("0") == True 会埋雷）
+            self._sit_prev_topmost = bool(self.cfg.topmost)
+            self.window.root.attributes("-topmost", True)
+
+            from .sit_reminder import SitAlertDialog
+            self._sit_alert_dialog = SitAlertDialog(self, on_close=self._on_sit_alert_close)
+        except Exception as exc:
+            print(f"[app] 触发久坐提醒失败：{exc}")
+            try:
+                self.window.root.attributes("-topmost", self._sit_prev_topmost)
+            except tk.TclError:
+                pass
+
+    def _on_sit_alert_close(self) -> None:
+        """提醒窗关闭（点"好的"或 X）→ 打开休息窗。"""
+        # 清理提醒窗引用（可能已被 _close 的 destroy 销毁）
+        dlg = self._sit_alert_dialog
+        self._sit_alert_dialog = None
+        if dlg is not None:
+            try:
+                if dlg.winfo_exists():
+                    dlg.destroy()
+            except tk.TclError:
+                pass
+        # 接力打开休息窗
+        self._open_sit_rest_dialog()
+
+    def _open_sit_rest_dialog(self) -> None:
+        """打开休息窗。若已存在（异常场景）则前置即可。"""
+        if self._sit_rest_dialog is not None:
+            try:
+                if self._sit_rest_dialog.winfo_exists():
+                    self._sit_rest_dialog.lift()
+                    self._sit_rest_dialog.focus_force()
+                    return
+            except tk.TclError:
+                self._sit_rest_dialog = None
+
+        try:
+            from .sit_reminder import SitRestDialog
+            self._sit_rest_dialog = SitRestDialog(self, on_close=self._on_sit_rest_done)
+        except Exception as exc:
+            print(f"[app] 打开休息窗口失败：{exc}")
+            # 兜底：直接走 D 时刻逻辑，避免计时卡死
+            try:
+                self.window.root.attributes("-topmost", self._sit_prev_topmost)
+            except tk.TclError:
+                pass
+            self._reset_sit_reminder_timer()
+
+    def _on_sit_rest_done(self, elapsed_seconds: float) -> None:
+        """点"我休息好了"（或关闭休息窗）→ 恢复置顶 + 新一轮计时 + 收尾气泡。
+
+        若用户原本不置顶：临时强制置顶 bubble_seconds+0.5 秒让气泡显示，
+        到点自动恢复非置顶（用户中途手动置顶则不覆盖）。
+        """
+        # 幂等守卫：防止重复回调
+        if self._sit_rest_dialog is None:
+            return
+        dlg = self._sit_rest_dialog
+        self._sit_rest_dialog = None
+        try:
+            if dlg.winfo_exists():
+                dlg.destroy()
+        except tk.TclError:
+            pass
+
+        # 恢复宠物窗口原来置顶状态
+        try:
+            self.window.root.attributes("-topmost", self._sit_prev_topmost)
+        except tk.TclError:
+            pass
+
+        if not self._sit_prev_topmost:
+            # 原本不置顶：临时置顶让用户看到气泡，显示完后自动恢复
+            try:
+                self.window.root.attributes("-topmost", True)
+                # 取消可能存在的旧定时器
+                if self._sit_topmost_restore_id:
+                    try:
+                        self.window.root.after_cancel(self._sit_topmost_restore_id)
+                    except Exception:
+                        pass
+                    self._sit_topmost_restore_id = None
+                # 略长于气泡时长，让用户完整看完提示
+                restore_after_ms = int(max(2.0, self.cfg.bubble_seconds + 0.5) * 1000)
+                self._sit_topmost_restore_id = self.window.root.after(
+                    restore_after_ms, self._restore_topmost_after_rest
+                )
+            except tk.TclError:
+                pass
+        else:
+            # 原本置顶：lift 一下确保 Z 序最前（本来就最前，无副作用）
+            try:
+                self.window.root.lift()
+            except tk.TclError:
+                pass
+
+        # D 时刻：新一轮计时起点
+        self._reset_sit_reminder_timer()
+
+        # 收尾气泡（方案 C）
+        from .sit_reminder import format_rest_duration_message
+        self._say(format_rest_duration_message(elapsed_seconds))
+
+    def _restore_topmost_after_rest(self) -> None:
+        """气泡显示完后恢复非置顶（用户中途手动开置顶则尊重用户选择）。"""
+        self._sit_topmost_restore_id = None
+        try:
+            if not self.cfg.topmost:  # 用户仍希望不置顶 → 恢复
+                self.window.root.attributes("-topmost", False)
+        except tk.TclError:
+            pass
+
+    def _play_sit_reminder_sound(self) -> None:
+        """预留音频接口：pet/assets/sounds/sit_reminder.wav 存在就播放，
+        不存在则退化为系统提示音（不报错、不影响主流程）。"""
+        try:
+            sound = SOUNDS_DIR / "sit_reminder.wav"
+            if sound.exists():
+                winsound.PlaySound(str(sound), winsound.SND_FILENAME | winsound.SND_ASYNC)
+            else:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+        except Exception as exc:
+            print(f"[app] 播放久坐提醒音效失败：{exc}")
+
+    # ================================
+
     def _setup_menu(self) -> None:
         menu = tk.Menu(self.window.root, tearoff=0)
         feed_menu = tk.Menu(menu, tearoff=0)
@@ -549,6 +728,9 @@ class PetApp:
         menu.add_command(label="😊 挥手", command=self._wave)
         menu.add_command(label="😴 睡眠/唤醒", command=self._toggle_sleep)
         menu.add_command(label="📊 查看状态", command=self._show_status)
+        # 久坐提醒（文本在弹出时动态更新，见 _menu_popup）
+        menu.add_command(label=self._sit_menu_label(), command=self._open_sit_reminder_dialog)
+        self._sit_menu_index = menu.index("end")
         menu.add_command(label="🔔 测试消息", command=self._test_message)
         menu.add_command(label="⚙️ 控制面板", command=self.open_control_panel)
         menu.add_separator()
@@ -556,6 +738,11 @@ class PetApp:
         self._menu = menu
 
     def _menu_popup(self, event: tk.Event) -> None:
+        # 每次弹出前刷新久坐提醒菜单项的文本
+        try:
+            self._menu.entryconfigure(self._sit_menu_index, label=self._sit_menu_label())
+        except Exception:
+            pass
         try:
             self._menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -564,7 +751,23 @@ class PetApp:
     def quit(self) -> None:
         self.stats.save()
         self.notifier.stop()
-        self.tray.stop()    # 停止托盘
+        self.tray.stop()
+        # 清理久坐提醒相关窗口 + 临时置顶定时器
+        if self._sit_topmost_restore_id:
+            try:
+                self.window.root.after_cancel(self._sit_topmost_restore_id)
+            except Exception:
+                pass
+            self._sit_topmost_restore_id = None
+        for attr in ("_sit_alert_dialog", "_sit_rest_dialog"):
+            dlg = getattr(self, attr, None)
+            if dlg is not None:
+                try:
+                    if dlg.winfo_exists():
+                        dlg.destroy()
+                except tk.TclError:
+                    pass
+                setattr(self, attr, None)
         self.window.root.quit()
         self.window.root.destroy()
 

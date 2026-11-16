@@ -130,6 +130,10 @@ class PetConfig:
     bubble_seconds: float = 6.0           # 气泡显示时长
     beep_on_message: bool = True
 
+    # ---- 久坐提醒 ----
+    sit_reminder_enabled: bool = False
+    sit_reminder_interval_minutes: int = 30   # 提醒间隔（总分钟数）
+
     atlas: AtlasConfig = field(default_factory=AtlasConfig)
 
     # ---- 新增移动 ----
